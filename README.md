@@ -360,4 +360,77 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
 **If this solution helped you, please ⭐ star the repo and share with your network!**
 
 
+scripts/install.sh
+#!/bin/bash
+set -euo pipefail
 
+echo "========================================="
+echo "DNS Throttling Solution Installer"
+echo "========================================="
+
+# Detect platform
+detect_platform() {
+  read -p "Are you installing on AWS EKS or Azure AKS? (aws/azure): " platform
+  echo $platform
+}
+
+PLATFORM=$(detect_platform)
+
+# Create namespace
+echo "Creating monitoring namespace..."
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+# Install Prometheus stack
+echo "Installing Prometheus and Grafana..."
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+
+# Wait for Prometheus
+echo "Waiting for Prometheus to be ready..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s
+
+# Deploy monitoring components
+echo "Deploying DNS monitoring components..."
+kubectl apply -f manifests/01-namespace/
+kubectl apply -f manifests/02-monitoring/
+
+# Configure platform-specific settings
+if [[ "$PLATFORM" == "aws" ]]; then
+  echo "Configuring for AWS EKS..."
+  # Apply AWS-specific configurations
+elif [[ "$PLATFORM" == "azure" ]]; then
+  echo "Configuring for Azure AKS..."
+  read -p "Enter Azure Resource ID: " resource_id
+  kubectl set env daemonset/dns-throttle-monitor -n monitoring AZURE_RESOURCE_ID="$resource_id"
+fi
+
+# Deploy Prometheus monitoring
+kubectl apply -f manifests/03-prometheus-grafana/
+
+# Deploy autoscaling
+kubectl apply -f manifests/04-autoscaling/
+
+# Deploy remediation webhook
+kubectl apply -f manifests/05-remediation/
+
+# Deploy NodeLocal DNS Cache
+echo "Deploying NodeLocal DNS Cache..."
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/kubernetes/master/cluster/addons/dns/nodelocaldns/nodelocaldns.yaml
+
+echo ""
+echo "========================================="
+echo "Installation Complete!"
+echo "========================================="
+echo ""
+echo "Next steps:"
+echo "1. Configure Alertmanager: kubectl edit secret -n monitoring alertmanager-prometheus-kube-prometheus-alertmanager"
+echo "2. Access Grafana: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80"
+echo "3. Run validation: ./scripts/validate.sh"
+echo ""
+echo "Grafana credentials:"
+echo "  Username: admin"
+echo "  Password: prom-operator"
