@@ -216,7 +216,31 @@ cd k8s-dns-throttling-solution
 
 ## 🏗️ Architecture
 
-
+## Architecture Overview
+```mermaid
+graph TB
+    subgraph "Kubernetes Cluster"
+        DS[DaemonSet<br/>Metrics Collection<br/>Every Node] -->|Prometheus Format| PROM[Prometheus<br/>Time-Series Storage<br/>30s scrape interval]
+        
+        PROM -->|Query Metrics| GRAF[Grafana<br/>Dashboards & Visualization]
+        PROM -->|Evaluate Rules| AM[Alertmanager<br/>Intelligent Routing]
+        
+        AM -->|Warning| SLACK[Slack Notifications<br/>#sre-alerts]
+        AM -->|Critical| PD[PagerDuty<br/>On-Call Engineer]
+        AM -->|Emergency| EMAIL[Email<br/>Management Team]
+        AM -->|Trigger| WEBHOOK[Remediation Webhook<br/>Auto-Scaling Logic]
+        
+        WEBHOOK -->|Scale Replicas| COREDNS[CoreDNS<br/>Auto-Scaling]
+        WEBHOOK -->|Deploy| CACHE[NodeLocal DNSCache<br/>80% Query Reduction]
+    end
+    
+    style DS fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    style PROM fill:#E96D76,stroke:#C14953,color:#fff
+    style GRAF fill:#F47B20,stroke:#C45E19,color:#fff
+    style AM fill:#9B59B6,stroke:#7D3C98,color:#fff
+    style WEBHOOK fill:#27AE60,stroke:#1E8449,color:#fff
+    style COREDNS fill:#3498DB,stroke:#2874A6,color:#fff
+```
 ─────────────────────────────────────────────────────────────┐
 │                    Kubernetes Cluster                      │
 │                                                            │
