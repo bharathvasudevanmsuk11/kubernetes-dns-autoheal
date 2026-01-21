@@ -1,187 +1,13 @@
 # kubernetes-dns-autoheal
-Zero-touch DNS throttling prevention for Kubernetes (EKS/AKS) - Automated monitoring, alerting, and self-healing
 
-## 📁 Repository Structure
-```
-k8s-dns-throttling-solution/
-│
-├── README.md                          # Main documentation
-├── LICENSE                            # MIT or Apache 2.0
-├── .gitignore                        
-│
-├── docs/
-│   ├── architecture.md               # Architecture diagrams
-│   ├── implementation-guide.md       # Step-by-step guide
-│   ├── troubleshooting.md           # Common issues & fixes
-│   ├── faq.md                       # Frequently asked questions
-│   └── images/
-│       ├── architecture-diagram.png
-│       ├── grafana-dashboard.png
-│       └── alert-flow.png
-│
-├── manifests/
-│   ├── 01-namespace/
-│   │   └── monitoring-namespace.yaml
-│   │
-│   ├── 02-monitoring/
-│   │   ├── configmap-monitoring-script.yaml
-│   │   ├── daemonset-dns-monitor.yaml
-│   │   ├── serviceaccount-dns-monitor.yaml
-│   │   ├── clusterrole-dns-monitor.yaml
-│   │   └── clusterrolebinding-dns-monitor.yaml
-│   │
-│   ├── 03-prometheus-grafana/
-│   │   ├── servicemonitor-dns-metrics.yaml
-│   │   ├── service-dns-monitor.yaml
-│   │   ├── prometheusrule-dns-alerts.yaml
-│   │   └── grafana-dashboard-configmap.yaml
-│   │
-│   ├── 04-autoscaling/
-│   │   ├── configmap-dns-autoscaler.yaml
-│   │   ├── deployment-dns-autoscaler.yaml
-│   │   ├── serviceaccount-dns-autoscaler.yaml
-│   │   ├── clusterrole-dns-autoscaler.yaml
-│   │   └── clusterrolebinding-dns-autoscaler.yaml
-│   │
-│   ├── 05-remediation/
-│   │   ├── configmap-remediation-webhook.yaml
-│   │   ├── deployment-remediation-webhook.yaml
-│   │   └── service-remediation-webhook.yaml
-│   │
-│   └── 06-alerting/
-│       └── secret-alertmanager-config.yaml
-│
-├── helm/
-│   └── dns-throttling-solution/
-│       ├── Chart.yaml
-│       ├── values.yaml
-│       ├── values-aws.yaml
-│       ├── values-azure.yaml
-│       └── templates/
-│           ├── daemonset.yaml
-│           ├── servicemonitor.yaml
-│           ├── prometheusrule.yaml
-│           ├── autoscaler.yaml
-│           └── webhook.yaml
-│
-├── scripts/
-│   ├── install.sh                   # One-command installation
-│   ├── validate.sh                  # Verify installation
-│   ├── test-alerts.sh              # Test alert routing
-│   ├── cleanup.sh                  # Uninstall everything
-│   └── monitoring/
-│       ├── monitor-dns-aws.sh      # AWS-specific monitoring
-│       ├── monitor-dns-azure.sh    # Azure-specific monitoring
-│       └── export-metrics.sh       # Prometheus format exporter
-│
-├── tests/
-│   ├── load-test/
-│   │   ├── dns-load-deployment.yaml
-│   │   └── run-load-test.sh
-│   │
-│   └── integration/
-│       ├── test-monitoring.sh
-│       ├── test-alerting.sh
-│       └── test-auto-remediation.sh
-│
-├── grafana/
-│   ├── dashboards/
-│   │   ├── dns-throttling-overview.json
-│   │   ├── dns-performance-metrics.json
-│   │   └── alert-history.json
-│   │
-│   └── datasources/
-│       └── prometheus.yaml
-│
-├── examples/
-│   ├── aws-eks/
-│   │   ├── cluster-config.yaml
-│   │   ├── iam-policy.json
-│   │   └── deployment-example.md
-│   │
-│   ├── azure-aks/
-│   │   ├── cluster-config.yaml
-│   │   ├── rbac-config.yaml
-│   │   └── deployment-example.md
-│   │
-│   └── alertmanager-configs/
-│       ├── slack-config.yaml
-│       ├── pagerduty-config.yaml
-│       └── email-config.yaml
-│
-├── runbooks/
-│   ├── dns-throttling-warning.md
-│   ├── dns-throttling-critical.md
-│   ├── conntrack-exhausted.md
-│   └── bandwidth-saturation.md
-│
-└── ci/
-    ├── .github/
-    │   └── workflows/
-    │       ├── validate-manifests.yml
-    │       ├── test-helm-chart.yml
-    │       └── publish-release.yml
-    │
-    └── validate-scripts.sh
+> Zero-touch DNS throttling prevention for Kubernetes (EKS/AKS) - Automated monitoring, alerting, and self-healing
 
-# Kubernetes DNS Auto-Heal
-
-> Zero-touch DNS throttling prevention for production Kubernetes clusters (AWS EKS & Azure AKS)
----
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.21+-blue.svg)](https://kubernetes.io/)
 [![AWS EKS](https://img.shields.io/badge/AWS-EKS-orange.svg)](https://aws.amazon.com/eks/)
 [![Azure AKS](https://img.shields.io/badge/Azure-AKS-blue.svg)](https://azure.microsoft.com/services/kubernetes-service/)
 
 ---
-
-## 🎯 Problem Statement
-
-DNS throttling silently breaks Kubernetes applications...
-
-> **Production-grade solution for detecting and automatically remediating DNS throttling in Kubernetes clusters.**
-
-![Architecture Diagram](docs/images/architecture-diagram.png)
-graph TB
-    subgraph cluster["🎯 Kubernetes Cluster"]
-        direction TB
-        
-        subgraph monitoring["📊 Monitoring Layer"]
-            DS[DaemonSet<br/>on every node]
-            PROM[Prometheus]
-            GRAF[Grafana]
-        end
-        
-        subgraph alerting["🔔 Alerting Layer"]
-            AM[Alertmanager]
-            SLACK[Slack]
-            PD[PagerDuty]
-            EMAIL[Email]
-        end
-        
-        subgraph remediation["🤖 Remediation Layer"]
-            WEBHOOK[Webhook]
-            SCALER[CoreDNS<br/>Auto-Scaler]
-            CACHE[NodeLocal<br/>DNS Cache]
-        end
-        
-        DS -->|metrics| PROM
-        PROM -->|query| GRAF
-        PROM -->|alerts| AM
-        AM -->|warning| SLACK
-        AM -->|critical| PD
-        AM -->|emergency| EMAIL
-        AM -->|trigger| WEBHOOK
-        WEBHOOK -->|scale| SCALER
-        WEBHOOK -->|deploy| CACHE
-    end
-    
-    style DS fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
-    style PROM fill:#E96D76,stroke:#C14953,stroke-width:2px,color:#fff
-    style GRAF fill:#F47B20,stroke:#C45E19,stroke-width:2px,color:#fff
-    style AM fill:#9B59B6,stroke:#7D3C98,stroke-width:2px,color:#fff
-    style WEBHOOK fill:#27AE60,stroke:#1E8449,stroke-width:2px,color:#fff
-    style SCALER fill:#3498DB,stroke:#2874A6,stroke-width:2px,color:#fff
 
 ## 🎯 Problem Statement
 
@@ -202,6 +28,36 @@ This solution provides:
 - ✅ **2-minute auto-remediation**
 - ✅ **100% incident reduction** in production
 
+---
+
+## 🏗️ Architecture
+```mermaid
+graph TB
+    subgraph "Kubernetes Cluster"
+        DS[DaemonSetMetrics CollectionEvery Node] -->|Prometheus Format| PROM[PrometheusTime-Series Storage30s scrape interval]
+        
+        PROM -->|Query Metrics| GRAF[GrafanaDashboards & Visualization]
+        PROM -->|Evaluate Rules| AM[AlertmanagerIntelligent Routing]
+        
+        AM -->|Warning| SLACK[Slack Notifications#sre-alerts]
+        AM -->|Critical| PD[PagerDutyOn-Call Engineer]
+        AM -->|Emergency| EMAIL[EmailManagement Team]
+        AM -->|Trigger| WEBHOOK[Remediation WebhookAuto-Scaling Logic]
+        
+        WEBHOOK -->|Scale Replicas| COREDNS[CoreDNSAuto-Scaling]
+        WEBHOOK -->|Deploy| CACHE[NodeLocal DNSCache80% Query Reduction]
+    end
+    
+    style DS fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    style PROM fill:#E96D76,stroke:#C14953,color:#fff
+    style GRAF fill:#F47B20,stroke:#C45E19,color:#fff
+    style AM fill:#9B59B6,stroke:#7D3C98,color:#fff
+    style WEBHOOK fill:#27AE60,stroke:#1E8449,color:#fff
+    style COREDNS fill:#3498DB,stroke:#2874A6,color:#fff
+```
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -210,31 +66,14 @@ This solution provides:
 - kubectl configured
 - Admin access to cluster
 
-### Install with Helm (Recommended)
-```bash
-# Add the Helm repository
-helm repo add dns-throttling https://your-username.github.io/k8s-dns-throttling-solution
-helm repo update
-
-# Install for AWS EKS
-helm install dns-throttling dns-throttling/dns-throttling-solution \
-  --namespace monitoring \
-  --create-namespace \
-  -f values-aws.yaml
-
-# Install for Azure AKS
-helm install dns-throttling dns-throttling/dns-throttling-solution \
-  --namespace monitoring \
-  --create-namespace \
-  -f values-azure.yaml \
-  --set azure.resourceId="YOUR_RESOURCE_ID"
-```
-
-### Install with kubectl
+### Installation
 ```bash
 # Clone repository
-git clone https://github.com/your-username/k8s-dns-throttling-solution.git
-cd k8s-dns-throttling-solution
+git clone https://github.com/bharathcs/kubernetes-dns-autoheal.git
+cd kubernetes-dns-autoheal
+
+# Make scripts executable
+chmod +x scripts/*.sh
 
 # Run installation script
 ./scripts/install.sh
@@ -242,6 +81,8 @@ cd k8s-dns-throttling-solution
 # Verify installation
 ./scripts/validate.sh
 ```
+
+---
 
 ## 📊 Features
 
@@ -263,34 +104,7 @@ cd k8s-dns-throttling-solution
 - **Webhook-based automation** 
 - **Manual intervention triggers** for complex issues
 
-## 🏗️ Architecture
-
-## Architecture Overview
-```mermaid
-graph TB
-    subgraph "Kubernetes Cluster"
-        DS[DaemonSet<br/>Metrics Collection<br/>Every Node] -->|Prometheus Format| PROM[Prometheus<br/>Time-Series Storage<br/>30s scrape interval]
-        
-        PROM -->|Query Metrics| GRAF[Grafana<br/>Dashboards & Visualization]
-        PROM -->|Evaluate Rules| AM[Alertmanager<br/>Intelligent Routing]
-        
-        AM -->|Warning| SLACK[Slack Notifications<br/>#sre-alerts]
-        AM -->|Critical| PD[PagerDuty<br/>On-Call Engineer]
-        AM -->|Emergency| EMAIL[Email<br/>Management Team]
-        AM -->|Trigger| WEBHOOK[Remediation Webhook<br/>Auto-Scaling Logic]
-        
-        WEBHOOK -->|Scale Replicas| COREDNS[CoreDNS<br/>Auto-Scaling]
-        WEBHOOK -->|Deploy| CACHE[NodeLocal DNSCache<br/>80% Query Reduction]
-    end
-    
-    style DS fill:#4A90E2,stroke:#2E5C8A,color:#fff
-    style PROM fill:#E96D76,stroke:#C14953,color:#fff
-    style GRAF fill:#F47B20,stroke:#C45E19,color:#fff
-    style AM fill:#9B59B6,stroke:#7D3C98,color:#fff
-    style WEBHOOK fill:#27AE60,stroke:#1E8449,color:#fff
-    style COREDNS fill:#3498DB,stroke:#2874A6,color:#fff
-```
-
+---
 
 ## 📈 Results
 
@@ -301,25 +115,33 @@ graph TB
 | Resolution Time | 2 hours | 2 min | **98%** |
 | Monthly Cost | $50K | $0 | **100%** |
 
-## 📖 Documentation
+---
 
-- [Architecture Details](docs/architecture.md)
-- [Implementation Guide](docs/implementation-guide.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [FAQ](docs/faq.md)
-
-## 🧪 Testing
-
-Run the test suite:
-```bash
-# Load testing
-./tests/load-test/run-load-test.sh
-
-# Integration tests
-./tests/integration/test-monitoring.sh
-./tests/integration/test-alerting.sh
-./tests/integration/test-auto-remediation.sh
+## 📁 Repository Structure
 ```
+kubernetes-dns-autoheal/
+├── manifests/              # Kubernetes YAML files
+│   ├── 01-namespace/
+│   ├── 02-monitoring/      # DaemonSet & monitoring
+│   ├── 03-prometheus-grafana/
+│   ├── 04-autoscaling/     # CoreDNS autoscaler
+│   ├── 05-remediation/     # Webhook automation
+│   └── 06-alerting/        # Alertmanager config
+├── scripts/
+│   ├── install.sh          # One-command install
+│   ├── validate.sh         # Verify deployment
+│   ├── test-alerts.sh      # Test alerting
+│   └── cleanup.sh          # Uninstall
+├── tests/
+│   └── load-test/          # DNS load testing
+├── examples/
+│   ├── aws-eks/            # AWS-specific configs
+│   └── azure-aks/          # Azure-specific configs
+├── runbooks/               # Incident response guides
+└── docs/                   # Detailed documentation
+```
+
+---
 
 ## 🛠️ Configuration
 
@@ -344,12 +166,14 @@ Update IAM policy for CloudWatch access:
 
 ### Azure AKS
 
-Set resource ID in values file:
+Set resource ID in deployment:
 ```yaml
 azure:
   enabled: true
   resourceId: "/subscriptions/SUB_ID/resourceGroups/RG_NAME/providers/Microsoft.Compute/virtualMachineScaleSets/VMSS_NAME"
 ```
+
+---
 
 ## 🔧 Customization
 
@@ -370,9 +194,42 @@ Edit `manifests/04-autoscaling/configmap-dns-autoscaler.yaml`:
   "coresPerReplica": 256,
   "nodesPerReplica": 16,
   "min": 2,
-  "max": 10  // Adjust max replicas
+  "max": 10
 }
 ```
+
+---
+
+## 🧪 Testing
+
+Run the test suite:
+```bash
+# Load testing
+./tests/load-test/run-load-test.sh
+
+# Integration tests
+./tests/integration/test-monitoring.sh
+./tests/integration/test-alerting.sh
+./tests/integration/test-auto-remediation.sh
+```
+
+---
+
+## 📖 Documentation
+
+- [Architecture Details](docs/architecture.md)
+- [Implementation Guide](docs/implementation-guide.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [FAQ](docs/faq.md)
+
+### Runbooks
+
+- [DNS Throttling Warning](runbooks/dns-throttling-warning.md)
+- [DNS Throttling Critical](runbooks/dns-throttling-critical.md)
+- [Conntrack Exhausted](runbooks/conntrack-exhausted.md)
+- [Bandwidth Saturation](runbooks/bandwidth-saturation.md)
+
+---
 
 ## 🤝 Contributing
 
@@ -384,109 +241,69 @@ Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open Pull Request
 
+---
+
 ## 📝 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+
+---
 
 ## 👤 Author
 
-****Bharath Vasudevan****
-- LinkedIn: https://www.linkedin.com/in/bharath-vasudevan-b4b07315/
-- Twitter: 
-- Blog: 
+**Bharath Vasudevan**
+
+- 💼 LinkedIn: [Bharath Vasudevan](https://www.linkedin.com/in/bharath-vasudevan-b4b07315/)
+- 📧 Email: bharathcs@example.com
+- 🌐 Blog: Coming soon
+
+---
 
 ## 🙏 Acknowledgments
 
 - Kubernetes community for CoreDNS and NodeLocal DNS
 - Prometheus team for excellent monitoring tools
-- All contributors and testers
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=your-username/k8s-dns-throttling-solution&type=Date)](https://star-history.com/#your-username/k8s-dns-throttling-solution&Date)
-
-## 📧 Support
-
-- Create an [issue](https://github.com/your-username/k8s-dns-throttling-solution/issues)
-- comment
-
+- All contributors and beta testers
 
 ---
 
-**If this solution helped you, please ⭐ star the repo and share with your network!**
+## 📧 Support
+
+- 📝 [Create an Issue](https://github.com/bharathcs/kubernetes-dns-autoheal/issues)
+- 💬 [Discussions](https://github.com/bharathcs/kubernetes-dns-autoheal/discussions)
+
+---
+
+⭐ **If this solution helped you, please star the repository and share with your network!**
+
+🔑 Key Changes I Made:
+
+✅ Removed duplicate sections
+✅ Removed the image reference (since you don't have the PNG yet)
+✅ Kept only the Mermaid diagram (renders on GitHub automatically)
+✅ Removed the install.sh script content (that should be in scripts/install.sh, not README)
+✅ Fixed your GitHub username to bharathcs
+✅ Cleaned up formatting
+✅ Removed duplicate repository structure
 
 
-scripts/install.sh
-#!/bin/bash
-set -euo pipefail
+📝 How to Update Your README:
 
-echo "========================================="
-echo "DNS Throttling Solution Installer"
-echo "========================================="
+In GitHub, edit your README.md
+Delete ALL current content
+Copy the cleaned version I provided above
+Paste it into your README.md
+Commit changes
 
-# Detect platform
-detect_platform() {
-  read -p "Are you installing on AWS EKS or Azure AKS? (aws/azure): " platform
-  echo $platform
-}
 
-PLATFORM=$(detect_platform)
+✨ The Result:
+Your README will now:
 
-# Create namespace
-echo "Creating monitoring namespace..."
-kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+✅ Display badges properly
+✅ Show the Mermaid architecture diagram
+✅ Have clean, organized sections
+✅ No duplicate content
+✅ Professional appearance
 
-# Install Prometheus stack
-echo "Installing Prometheus and Grafana..."
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
-  --namespace monitoring \
-  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
-
-# Wait for Prometheus
-echo "Waiting for Prometheus to be ready..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s
-
-# Deploy monitoring components
-echo "Deploying DNS monitoring components..."
-kubectl apply -f manifests/01-namespace/
-kubectl apply -f manifests/02-monitoring/
-
-# Configure platform-specific settings
-if [[ "$PLATFORM" == "aws" ]]; then
-  echo "Configuring for AWS EKS..."
-  # Apply AWS-specific configurations
-elif [[ "$PLATFORM" == "azure" ]]; then
-  echo "Configuring for Azure AKS..."
-  read -p "Enter Azure Resource ID: " resource_id
-  kubectl set env daemonset/dns-throttle-monitor -n monitoring AZURE_RESOURCE_ID="$resource_id"
-fi
-
-# Deploy Prometheus monitoring
-kubectl apply -f manifests/03-prometheus-grafana/
-
-# Deploy autoscaling
-kubectl apply -f manifests/04-autoscaling/
-
-# Deploy remediation webhook
-kubectl apply -f manifests/05-remediation/
-
-# Deploy NodeLocal DNS Cache
-echo "Deploying NodeLocal DNS Cache..."
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/kubernetes/master/cluster/addons/dns/nodelocaldns/nodelocaldns.yaml
-
-echo ""
-echo "========================================="
-echo "Installation Complete!"
-echo "========================================="
-echo ""
-echo "Next steps:"
-echo "1. Configure Alertmanager: kubectl edit secret -n monitoring alertmanager-prometheus-kube-prometheus-alertmanager"
-echo "2. Access Grafana: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80"
-echo "3. Run validation: ./scripts/validate.sh"
-echo ""
-echo "Grafana credentials:"
-echo "  Username: admin"
-echo "  Password: prom-operator"
+The Mermaid diagram will render beautifully on GitHub like this: 🎨
+Would you like me to also create the other missing files like CONTRIBUTING.md, LICENSE, or the documentation files?
