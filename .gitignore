@@ -1,0 +1,75 @@
+# Kubernetes
+*.kubeconfig
+kubeconfig*
+.kube/
+
+# Helm
+*.tgz
+charts/
+Chart.lock
+
+# Terraform (if used)
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Secrets (IMPORTANT!)
+secrets/
+*.key
+*.pem
+*.crt
+*-secret.yaml
+credentials.json
+config.json
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+test-results/
+coverage/
+
+# Node modules (if using Node tools)
+node_modules/
+package-lock.json
+
+# Backup files
+*.backup
+*-backup.yaml
+
+# Documentation builds
+docs/_build/
+site/
