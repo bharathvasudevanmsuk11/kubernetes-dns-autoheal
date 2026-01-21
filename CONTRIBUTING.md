@@ -309,7 +309,7 @@ def scale_coredns(target_replicas: int) -> dict:
 ### Adding New Manifests
 
 Place manifests in appropriate directories:
----
+```
 manifests/
 ├── 01-namespace/        # Namespace definitions
 ├── 02-monitoring/       # Monitoring components
@@ -317,23 +317,23 @@ manifests/
 ├── 04-autoscaling/      # Auto-scaling configs
 ├── 05-remediation/      # Remediation logic
 └── 06-alerting/         # Alert configurations
-
+```
 ### Adding New Scripts
----
+```
 scripts/
 ├── install.sh           # Main installer
 ├── validate.sh          # Validation
 ├── test-*.sh           # Test scripts
 └── monitoring/         # Platform-specific scripts
-
+```
 ### Adding Documentation
----
+```
 docs/
 ├── architecture.md      # Architecture details
 ├── implementation-guide.md  # Step-by-step guide
 ├── troubleshooting.md   # Common issues
 └── images/             # Diagrams and screenshots
-
+```
 
 ---
 
