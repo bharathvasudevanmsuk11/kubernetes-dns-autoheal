@@ -127,7 +127,7 @@ k8s-dns-throttling-solution/
 # Kubernetes DNS Auto-Heal
 
 > Zero-touch DNS throttling prevention for production Kubernetes clusters (AWS EKS & Azure AKS)
-
+---
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.21+-blue.svg)](https://kubernetes.io/)
 [![AWS EKS](https://img.shields.io/badge/AWS-EKS-orange.svg)](https://aws.amazon.com/eks/)
@@ -142,6 +142,46 @@ DNS throttling silently breaks Kubernetes applications...
 > **Production-grade solution for detecting and automatically remediating DNS throttling in Kubernetes clusters.**
 
 ![Architecture Diagram](docs/images/architecture-diagram.png)
+graph TB
+    subgraph cluster["🎯 Kubernetes Cluster"]
+        direction TB
+        
+        subgraph monitoring["📊 Monitoring Layer"]
+            DS[DaemonSet<br/>on every node]
+            PROM[Prometheus]
+            GRAF[Grafana]
+        end
+        
+        subgraph alerting["🔔 Alerting Layer"]
+            AM[Alertmanager]
+            SLACK[Slack]
+            PD[PagerDuty]
+            EMAIL[Email]
+        end
+        
+        subgraph remediation["🤖 Remediation Layer"]
+            WEBHOOK[Webhook]
+            SCALER[CoreDNS<br/>Auto-Scaler]
+            CACHE[NodeLocal<br/>DNS Cache]
+        end
+        
+        DS -->|metrics| PROM
+        PROM -->|query| GRAF
+        PROM -->|alerts| AM
+        AM -->|warning| SLACK
+        AM -->|critical| PD
+        AM -->|emergency| EMAIL
+        AM -->|trigger| WEBHOOK
+        WEBHOOK -->|scale| SCALER
+        WEBHOOK -->|deploy| CACHE
+    end
+    
+    style DS fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    style PROM fill:#E96D76,stroke:#C14953,stroke-width:2px,color:#fff
+    style GRAF fill:#F47B20,stroke:#C45E19,stroke-width:2px,color:#fff
+    style AM fill:#9B59B6,stroke:#7D3C98,stroke-width:2px,color:#fff
+    style WEBHOOK fill:#27AE60,stroke:#1E8449,stroke-width:2px,color:#fff
+    style SCALER fill:#3498DB,stroke:#2874A6,stroke-width:2px,color:#fff
 
 ## 🎯 Problem Statement
 
