@@ -127,11 +127,10 @@ k8s-dns-throttling-solution/
 # Kubernetes DNS Throttling Solution
 ## Zero-Touch Monitoring and Auto-Remediation for EKS/AKS
 
-[![License: MIT] <img width="125" height="24" alt="image" src="https://github.com/user-attachments/assets/bafafb23-e1ca-4222-a065-f2a9fca199be" />
-https://opensource.org/licenses/MIT
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.21+-blue.svg)](https://kubernetes.io/)
-[![AWS EKS](https://img.shields.io/badge/AWS-EKS-orange.svg)](https://aws.amazon.com/eks/)
-[![Azure AKS](https://img.shields.io/badge/Azure-AKS-blue.svg)](https://azure.microsoft.com/en-us/services/kubernetes-service/)
+##[![License: MIT] (https://img.shields.io/badge/License-MIT-yellow.svg)] (https://opensource.org/licenses/MIT)
+## [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.21+-blue.svg)](https://kubernetes.io/)
+## [![AWS EKS](https://img.shields.io/badge/AWS-EKS-orange.svg)](https://aws.amazon.com/eks/)
+## [![Azure AKS](https://img.shields.io/badge/Azure-AKS-blue.svg)](https://azure.microsoft.com/en-us/services/kubernetes-service/)
 
 > **Production-grade solution for detecting and automatically remediating DNS throttling in Kubernetes clusters.**
 
