@@ -124,13 +124,20 @@ k8s-dns-throttling-solution/
     │
     └── validate-scripts.sh
 
-# Kubernetes DNS Throttling Solution
-## Zero-Touch Monitoring and Auto-Remediation for EKS/AKS
+# Kubernetes DNS Auto-Heal
 
-##[![License: MIT] (https://img.shields.io/badge/License-MIT-yellow.svg)] (https://opensource.org/licenses/MIT)
-## [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.21+-blue.svg)](https://kubernetes.io/)
-## [![AWS EKS](https://img.shields.io/badge/AWS-EKS-orange.svg)](https://aws.amazon.com/eks/)
-## [![Azure AKS](https://img.shields.io/badge/Azure-AKS-blue.svg)](https://azure.microsoft.com/en-us/services/kubernetes-service/)
+> Zero-touch DNS throttling prevention for production Kubernetes clusters (AWS EKS & Azure AKS)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.21+-blue.svg)](https://kubernetes.io/)
+[![AWS EKS](https://img.shields.io/badge/AWS-EKS-orange.svg)](https://aws.amazon.com/eks/)
+[![Azure AKS](https://img.shields.io/badge/Azure-AKS-blue.svg)](https://azure.microsoft.com/services/kubernetes-service/)
+
+---
+
+## 🎯 Problem Statement
+
+DNS throttling silently breaks Kubernetes applications...
 
 > **Production-grade solution for detecting and automatically remediating DNS throttling in Kubernetes clusters.**
 
