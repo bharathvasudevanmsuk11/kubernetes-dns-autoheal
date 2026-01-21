@@ -254,7 +254,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 **Bharath Vasudevan**
 
 - 💼 LinkedIn: [Bharath Vasudevan](https://www.linkedin.com/in/bharath-vasudevan-b4b07315/)
-- 📧 Email: bharathcs@example.com
+- 📧 Email: Coming soon
 - 🌐 Blog: Coming soon
 
 ---
@@ -270,7 +270,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 📧 Support
 
 - 📝 [Create an Issue](https://github.com/bharathcs/kubernetes-dns-autoheal/issues)
-- 💬 [Discussions](https://github.com/bharathcs/kubernetes-dns-autoheal/discussions)
+- 💬 [Discussions](https://github.com/bharathvasudevanmsuk11/kubernetes-dns-autoheal/discussions)
 
 ---
 
