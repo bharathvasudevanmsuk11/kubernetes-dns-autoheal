@@ -348,3 +348,18 @@ If you're still stuck:
 ## Known Limitations
 
 1. **CloudWatch API rate limits:**
+   - AWS throttles CloudWatch API calls
+   - Monitor from max 100 nodes simultaneously
+   - Consider using CloudWatch agent for larger clusters
+
+2. **Azure Monitor latency:**
+   - Metrics may have 2-3 minute delay
+   - Alert thresholds account for this delay
+
+3. **Multi-cluster support:**
+   - Currently designed for single cluster
+   - Multi-cluster requires Prometheus federation
+
+4. **Custom metrics:**
+   - Only cloud provider metrics supported
+   - Application-level DNS metrics require custom exporters
