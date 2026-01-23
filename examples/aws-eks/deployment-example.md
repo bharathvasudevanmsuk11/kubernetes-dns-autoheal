@@ -222,5 +222,5 @@ aws iam delete-policy \
 
 ## Support
 
-- Issues: https://github.com/bharathcs/kubernetes-dns-autoheal/issues
-- Docs: https://github.com/bharathcs/kubernetes-dns-autoheal/blob/main/docs/
+- Issues: https://github.com/bharathvasudevanmsuk11/kubernetes-dns-autoheal/issues
+- Docs: https://github.com/bharathcsvasudevanmsuk11/kubernetes-dns-autoheal/blob/main/docs/
