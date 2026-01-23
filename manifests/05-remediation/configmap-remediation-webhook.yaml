@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: remediation-webhook
+  namespace: monitoring
+  labels:
+    app: remediation-webhook
+data:
+  webhook.py: |
+    #!/usr/bin/env python3
+    import os
+    import json
+    import logging
+    from flask import Flask, request, jsonify
+    from kubernetes import client, config
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    
+    app = Flask(__name__)
+    
+    try:
+        config.load_incluster_config()
+    except:
+        config.load_kube_config()
+    
+    apps_v1 = client.AppsV1Api()
+    
+    def scale_coredns(target_replicas):
+        try:
+            deployment = apps_v1.read_namespaced_deployment(
+                name="coredns",
+                namespace="kube-system"
+            )
+            
+            current_replicas = deployment.spec.replicas
+            
+            if current_replicas == target_replicas:
+                logger.info(f"CoreDNS already at {target_replicas} replicas")
+                return {"status": "no_change", "replicas": current_replicas}
+            
+            deployment.spec.replicas = target_replicas
+            apps_v1.patch_namespaced_deployment_scale(
+                name="coredns",
+                namespace="kube-system",
+                body={"spec": {"replicas": target_replicas}}
+            )
+            
+            logger.info(f"Scaled CoreDNS from {current_replicas} to {target_replicas} replicas")
+            return {
+                "status": "scaled",
+                "previous": current_replicas,
+                "current": target_replicas
+            }
+        except Exception as e:
+            logger.error(f"Failed to scale CoreDNS: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    @app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({"status": "healthy"}), 200
+    
+    @app.route('/remediate', methods=['POST'])
+    def remediate():
+        try:
+            data = request.json
+            logger.info(f"Received webhook: {json.dumps(data, indent=2)}")
+            
+            if not data or 'alerts' not in data:
+                return jsonify({"status": "error", "message": "Invalid payload"}), 400
+            
+            for alert in data['alerts']:
+                alert_name = alert.get('labels', {}).get('alertname', 'Unknown')
+                status = alert.get('status', 'unknown')
+                
+                logger.info(f"Processing alert: {alert_name} (status: {status})")
+                
+                if status != 'firing':
+                    logger.info(f"Alert {alert_name} is not firing, skipping")
+                    continue
+                
+                if alert_name == "DNSThrottlingCritical":
+                    result = scale_coredns(target_replicas=6)
+                    return jsonify({
+                        "status": "remediated",
+                        "action": "scaled_coredns",
+                        "alert": alert_name,
+                        "details": result
+                    }), 200
+                
+                elif alert_name == "DNSThrottlingWarning":
+                    result = scale_coredns(target_replicas=4)
+                    return jsonify({
+                        "status": "remediated",
+                        "action": "scaled_coredns",
+                        "alert": alert_name,
+                        "details": result
+                    }), 200
+                
+                elif alert_name == "ConntrackExhausted":
+                    logger.warning("Conntrack exhausted - manual intervention required")
+                    return jsonify({
+                        "status": "manual_intervention_required",
+                        "action": "none",
+                        "alert": alert_name,
+                        "message": "Upgrade instance type or reduce connection churn"
+                    }), 200
+                
+                else:
+                    logger.info(f"No automated remediation for alert: {alert_name}")
+                    return jsonify({
+                        "status": "acknowledged",
+                        "action": "none",
+                        "alert": alert_name
+                    }), 200
+            
+            return jsonify({"status": "processed"}), 200
+            
+        except Exception as e:
+            logger.error(f"Error processing webhook: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
+    if __name__ == '__main__':
+        port = int(os.environ.get('PORT', 8080))
+        logger.info(f"Starting remediation webhook on port {port}")
+        app.run(host='0.0.0.0', port=port, debug=False)
