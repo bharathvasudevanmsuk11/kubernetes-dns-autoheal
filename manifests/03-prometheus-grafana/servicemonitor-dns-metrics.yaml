@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dns-throttle-monitor
+  namespace: monitoring
+  labels:
+    app: dns-throttle-monitor
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: dns-throttle-monitor
+  namespaceSelector:
+    matchNames:
+    - monitoring
+  endpoints:
+  - port: metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /metrics
+    scheme: http
