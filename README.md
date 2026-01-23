@@ -59,6 +59,7 @@ graph TB
 ---
 
 ## 🚀 Quick Start
+👉 See QUICKSTART.md for complete deployment checklist
 
 ### Prerequisites
 - Kubernetes 1.21+
@@ -140,10 +141,12 @@ kubernetes-dns-autoheal/
 ├── runbooks/               # Incident response guides
 └── docs/                   # Detailed documentation
 ```
-
+Total Manifests: 19 YAML files
+See: QUICKSTART.md for complete checklist
 ---
 
 ## 🛠️ Configuration
+⚠️ IMPORTANT: Before deploying, update these values. See QUICKSTART.md
 
 ### AWS EKS
 
