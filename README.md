@@ -269,7 +269,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 ## 📧 Support
 
-- 📝 [Create an Issue](https://github.com/bharathcs/kubernetes-dns-autoheal/issues)
+- 📝 [Create an Issue](https://github.com/bharathvasudevanmauk11/kubernetes-dns-autoheal/issues)
 - 💬 [Discussions](https://github.com/bharathvasudevanmsuk11/kubernetes-dns-autoheal/discussions)
 
 ---
