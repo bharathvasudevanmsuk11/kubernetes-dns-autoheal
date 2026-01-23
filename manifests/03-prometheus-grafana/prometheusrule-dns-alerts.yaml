@@ -1,0 +1,99 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dns-throttling-alerts
+  namespace: monitoring
+  labels:
+    app: dns-throttle-monitor
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: dns_throttling
+    interval: 30s
+    rules:
+    - alert: DNSThrottlingWarning
+      expr: kubernetes_dns_linklocal_allowance_exceeded > 0
+      for: 2m
+      labels:
+        severity: warning
+        team: sre
+        component: dns
+      annotations:
+        summary: "DNS throttling detected on {{ $labels.instance }}"
+        description: "Link-local allowance exceeded on {{ $labels.instance }}. Current value: {{ $value }}"
+        runbook_url: "https://github.com/bharathcs/kubernetes-dns-autoheal/blob/main/runbooks/dns-throttling-warning.md"
+        dashboard_url: "https://grafana.example.com/d/dns-throttling"
+        
+    - alert: DNSThrottlingCritical
+      expr: kubernetes_dns_linklocal_allowance_exceeded > 100
+      for: 1m
+      labels:
+        severity: critical
+        team: sre
+        component: dns
+        escalate: manager
+        pagerduty: "true"
+      annotations:
+        summary: "CRITICAL: Severe DNS throttling on {{ $labels.instance }}"
+        description: "Severe DNS throttling detected. Exceeded count: {{ $value }}. Immediate action required!"
+        remediation: "Auto-scaling CoreDNS. Verify cluster capacity and consider adding nodes."
+        runbook_url: "https://github.com/bharathcs/kubernetes-dns-autoheal/blob/main/runbooks/dns-throttling-critical.md"
+        
+    - alert: ConntrackExhausted
+      expr: kubernetes_dns_conntrack_allowance_exceeded > 0
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+        component: network
+      annotations:
+        summary: "Conntrack table exhausted on {{ $labels.instance }}"
+        description: "Connection tracking table is full. Current exceeded: {{ $value }}"
+        remediation: "Consider upgrading to larger instance type or reducing connection churn"
+        runbook_url: "https://github.com/bharathcs/kubernetes-dns-autoheal/blob/main/runbooks/conntrack-exhausted.md"
+        
+    - alert: ConntrackLow
+      expr: kubernetes_dns_conntrack_allowance_available < 1000
+      for: 10m
+      labels:
+        severity: warning
+        team: infrastructure
+        component: network
+      annotations:
+        summary: "Conntrack capacity running low on {{ $labels.instance }}"
+        description: "Available conntrack entries: {{ $value }}. Consider scaling."
+        
+    - alert: BandwidthSaturation
+      expr: (kubernetes_dns_bw_in_allowance_exceeded + kubernetes_dns_bw_out_allowance_exceeded) > 0
+      for: 3m
+      labels:
+        severity: warning
+        team: network
+        component: bandwidth
+      annotations:
+        summary: "Network bandwidth saturated on {{ $labels.instance }}"
+        description: "Bandwidth limits exceeded. Scale horizontally or upgrade instance."
+        runbook_url: "https://github.com/bharathcs/kubernetes-dns-autoheal/blob/main/runbooks/bandwidth-saturation.md"
+        
+    - alert: PPSExceeded
+      expr: kubernetes_dns_pps_allowance_exceeded > 0
+      for: 2m
+      labels:
+        severity: warning
+        team: network
+        component: pps
+      annotations:
+        summary: "Packets per second limit exceeded on {{ $labels.instance }}"
+        description: "PPS allowance exceeded: {{ $value }}. Network throttling active."
+        
+    - alert: DNSMonitorDown
+      expr: up{job="dns-throttle-monitor"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        team: sre
+        component: monitoring
+      annotations:
+        summary: "DNS monitoring is down on {{ $labels.instance }}"
+        description: "Cannot collect DNS throttling metrics. Monitoring is blind!"
