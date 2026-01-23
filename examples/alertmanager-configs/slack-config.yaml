@@ -1,0 +1,184 @@
+yaml# Example Alertmanager configuration for Slack
+
+global:
+  resolve_timeout: 5m
+  slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+route:
+  receiver: 'default'
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+  - match:
+      severity: warning
+    receiver: 'slack-warnings'
+  - match:
+      severity: critical
+    receiver: 'slack-critical'
+
+receivers:
+- name: 'default'
+  slack_configs:
+  - channel: '#general'
+    title: 'Alert: {{ .GroupLabels.alertname }}'
+    text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+
+- name: 'slack-warnings'
+  slack_configs:
+  - channel: '#sre-alerts'
+    username: 'Alertmanager'
+    icon_emoji: ':warning:'
+    title: '⚠️ Warning: {{ .GroupLabels.alertname }}'
+    text: |
+      {{ range .Alerts }}
+      *Summary:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Severity:* {{ .Labels.severity }}
+      {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+      {{ end }}
+    actions:
+    - type: button
+      text: 'View in Prometheus'
+      url: 'http://prometheus:9090/alerts'
+    - type: button
+      text: 'View Runbook'
+      url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+
+- name: 'slack-critical'
+  slack_configs:
+  - channel: '#incidents'
+    username: 'Alertmanager'
+    icon_emoji: ':rotating_light:'
+    title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+    text: |
+      {{ range .Alerts }}
+      *Summary:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Remediation:* {{ .Annotations.remediation }}
+      *Runbook:* {{ .Annotations.runbook_url }}
+      {{ end }}
+    color: danger
+
+File: examples/alertmanager-configs/pagerduty-config.yaml
+yaml# Example Alertmanager configuration for PagerDuty
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster']
+  routes:
+  - match:
+      severity: critical
+    receiver: 'pagerduty-critical'
+    continue: true
+  - match:
+      severity: warning
+    receiver: 'pagerduty-warning'
+
+receivers:
+- name: 'default'
+  webhook_configs:
+  - url: 'http://remediation-webhook.monitoring.svc:8080/remediate'
+
+- name: 'pagerduty-critical'
+  pagerduty_configs:
+  - service_key: 'YOUR_PAGERDUTY_INTEGRATION_KEY'
+    description: '{{ .GroupLabels.alertname }}'
+    details:
+      firing: '{{ .Alerts.Firing | len }}'
+      resolved: '{{ .Alerts.Resolved | len }}'
+      cluster: '{{ .CommonLabels.cluster }}'
+      summary: '{{ (index .Alerts 0).Annotations.summary }}'
+      description: '{{ (index .Alerts 0).Annotations.description }}'
+      runbook: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+    severity: critical
+
+- name: 'pagerduty-warning'
+  pagerduty_configs:
+  - service_key: 'YOUR_PAGERDUTY_INTEGRATION_KEY'
+    description: '{{ .GroupLabels.alertname }}'
+    severity: warning
+
+File: examples/alertmanager-configs/email-config.yaml
+yaml# Example Alertmanager configuration for Email
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alertmanager@company.com'
+  smtp_auth_username: 'alerts@company.com'
+  smtp_auth_password: 'YOUR_APP_PASSWORD'
+  smtp_require_tls: true
+
+route:
+  receiver: 'default'
+  group_by: ['alertname']
+  routes:
+  - match:
+      severity: critical
+    receiver: 'email-oncall'
+  - match:
+      severity: warning
+    receiver: 'email-sre-team'
+  - match:
+      escalate: manager
+    receiver: 'email-management'
+
+receivers:
+- name: 'default'
+  email_configs:
+  - to: 'sre-team@company.com'
+    headers:
+      Subject: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
+
+- name: 'email-oncall'
+  email_configs:
+  - to: 'oncall@company.com'
+    headers:
+      Subject: '[CRITICAL] {{ .GroupLabels.alertname }}'
+      Priority: '1'
+    html: |
+      <h2 style="color: red;">CRITICAL ALERT</h2>
+      {{ range .Alerts }}
+      <h3>{{ .Annotations.summary }}</h3>
+      <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+      <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+      <p><strong>Cluster:</strong> {{ .Labels.cluster }}</p>
+      {{ if .Annotations.remediation }}
+      <p><strong>Remediation:</strong> {{ .Annotations.remediation }}</p>
+      {{ end }}
+      {{ if .Annotations.runbook_url }}
+      <p><strong>Runbook:</strong> <a href="{{ .Annotations.runbook_url }}">{{ .Annotations.runbook_url }}</a></p>
+      {{ end }}
+      {{ end }}
+
+- name: 'email-sre-team'
+  email_configs:
+  - to: 'sre-team@company.com'
+    headers:
+      Subject: '[WARNING] {{ .GroupLabels.alertname }}'
+    html: |
+      <h2 style="color: orange;">Warning Alert</h2>
+      {{ range .Alerts }}
+      <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
+      <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+      {{ end }}
+
+- name: 'email-management'
+  email_configs:
+  - to: 'engineering-manager@company.com'
+    headers:
+      Subject: '[ESCALATION] {{ .GroupLabels.alertname }}'
+      Priority: '1'
+    html: |
+      <h2 style="color: red;">CRITICAL ESCALATION REQUIRED</h2>
+      <p>A critical issue requires management attention.</p>
+      {{ range .Alerts }}
+      <h3>{{ .Annotations.summary }}</h3>
+      <p><strong>Impact:</strong> Service degradation possible</p>
+      <p><strong>Auto-remediation:</strong> {{ .Annotations.remediation }}</p>
+      {{ end }}
