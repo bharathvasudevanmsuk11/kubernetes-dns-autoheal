@@ -1,0 +1,332 @@
+# Azure AKS Deployment Guide
+
+Complete step-by-step guide for deploying the DNS Auto-Heal solution on Azure AKS.
+
+## Prerequisites
+
+- Azure CLI installed and configured
+- kubectl installed
+- Azure subscription with appropriate permissions
+- Resource group created
+
+## Step 1: Create AKS Cluster (Optional)
+
+If you don't have an existing cluster:
+```bash
+# Set variables
+RESOURCE_GROUP="dns-autoheal-rg"
+CLUSTER_NAME="dns-autoheal-demo"
+LOCATION="eastus"
+
+# Create resource group
+az group create --name $RESOURCE_GROUP --location $LOCATION
+
+# Create AKS cluster
+az aks create \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --node-count 3 \
+  --node-vm-size Standard_D4s_v3 \
+  --enable-managed-identity \
+  --enable-cluster-autoscaler \
+  --min-count 2 \
+  --max-count 5 \
+  --network-plugin azure \
+  --kubernetes-version 1.28
+
+# This takes ~10-15 minutes
+```
+
+Or use an existing cluster:
+```bash
+# Get credentials
+az aks get-credentials \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME
+```
+
+## Step 2: Get Resource Information
+
+### Get VMSS Resource ID
+```bash
+# Get node resource group
+NODE_RG=$(az aks show \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --query nodeResourceGroup \
+  --output tsv)
+
+echo "Node Resource Group: $NODE_RG"
+
+# Get VMSS Resource ID
+VMSS_ID=$(az vmss list \
+  --resource-group $NODE_RG \
+  --query "[0].id" \
+  --output tsv)
+
+echo "VMSS Resource ID: $VMSS_ID"
+
+# Save this for later
+echo $VMSS_ID > azure-resource-id.txt
+```
+
+### Get AKS Managed Identity
+```bash
+# Get the kubelet identity
+IDENTITY=$(az aks show \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --query identityProfile.kubeletidentity.clientId \
+  --output tsv)
+
+echo "Managed Identity: $IDENTITY"
+```
+
+## Step 3: Assign Monitoring Permissions
+```bash
+# Assign Monitoring Reader role to the managed identity
+az role assignment create \
+  --assignee $IDENTITY \
+  --role "Monitoring Reader" \
+  --scope $VMSS_ID
+
+# Verify role assignment
+az role assignment list \
+  --assignee $IDENTITY \
+  --scope $VMSS_ID \
+  --output table
+```
+
+## Step 4: Deploy DNS Auto-Heal Solution
+```bash
+# Clone repository
+git clone https://github.com/bharathcs/kubernetes-dns-autoheal.git
+cd kubernetes-dns-autoheal
+
+# Make scripts executable
+chmod +x scripts/*.sh
+
+# Run installer
+./scripts/install.sh
+
+# Select option 2 for Azure AKS
+# Paste the VMSS Resource ID when prompted
+```
+
+## Step 5: Configure Resource ID
+
+If you didn't set it during installation:
+```bash
+# Set the Azure resource ID
+kubectl set env daemonset/dns-throttle-monitor \
+  -n monitoring \
+  AZURE_RESOURCE_ID="$(cat azure-resource-id.txt)"
+
+# Verify
+kubectl get daemonset dns-throttle-monitor -n monitoring -o yaml | grep AZURE_RESOURCE_ID
+```
+
+## Step 6: Verify Installation
+```bash
+# Run validation
+./scripts/validate.sh
+
+# Check DaemonSet pods (one per node)
+kubectl get pods -n monitoring -l app=dns-throttle-monitor
+
+# Check logs
+kubectl logs -n monitoring -l app=dns-throttle-monitor --tail=20
+
+# Should see: "Collecting Azure metrics..."
+```
+
+## Step 7: Verify Metrics Collection
+```bash
+# Port-forward to Prometheus
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090 &
+
+# Open browser: http://localhost:9090
+# Query: kubernetes_dns_PacketsDroppedDNS
+# Should show data from your nodes
+```
+
+## Step 8: Configure Alerting
+
+Edit the Alertmanager configuration:
+```bash
+nano manifests/06-alerting/secret-alertmanager-config.yaml
+
+# Update:
+# - Slack webhook URL
+# - Email addresses
+# - PagerDuty key
+
+# Apply changes
+kubectl apply -f manifests/06-alerting/secret-alertmanager-config.yaml
+
+# Restart Alertmanager
+kubectl rollout restart statefulset \
+  alertmanager-prometheus-kube-prometheus-alertmanager -n monitoring
+```
+
+## Step 9: Access Dashboards
+
+### Grafana
+```bash
+# Get password
+kubectl get secret -n monitoring prometheus-grafana \
+  -o jsonpath="{.data.admin-password}" | base64 --decode
+
+# Port-forward
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+
+# Open: http://localhost:3000
+# Login: admin / 
+```
+
+### Prometheus
+```bash
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
+
+# Open: http://localhost:9090
+```
+
+## Troubleshooting
+
+### Issue: No metrics in Prometheus
+
+**Check permissions:**
+```bash
+# Verify role assignment
+az role assignment list \
+  --assignee $IDENTITY \
+  --output table
+
+# Should show "Monitoring Reader" role
+```
+
+**Check DaemonSet logs:**
+```bash
+kubectl logs -n monitoring -l app=dns-throttle-monitor --tail=50
+
+# Look for errors like:
+# - "AZURE_RESOURCE_ID not set"
+# - "Access denied"
+# - "Authorization failed"
+```
+
+### Issue: "AZURE_RESOURCE_ID not set"
+
+**Solution:**
+```bash
+# Get the resource ID again
+VMSS_ID=$(az vmss list \
+  --resource-group $NODE_RG \
+  --query "[0].id" \
+  --output tsv)
+
+# Set it
+kubectl set env daemonset/dns-throttle-monitor \
+  -n monitoring \
+  AZURE_RESOURCE_ID="$VMSS_ID"
+
+# Verify pods restart
+kubectl get pods -n monitoring -l app=dns-throttle-monitor -w
+```
+
+### Issue: "Authorization failed"
+
+**Solution:**
+```bash
+# Re-assign the role
+az role assignment create \
+  --assignee $IDENTITY \
+  --role "Monitoring Reader" \
+  --scope $VMSS_ID
+
+# Wait 5 minutes for Azure to propagate
+# Restart DaemonSet
+kubectl rollout restart daemonset dns-throttle-monitor -n monitoring
+```
+
+## Azure Monitor Metrics
+
+Available metrics for monitoring:
+
+| Metric Name | Description |
+|-------------|-------------|
+| PacketsDroppedDNS | DNS packets dropped due to throttling |
+| ConntrackExceeded | Connection tracking table exceeded |
+| ConntrackAvailable | Available conntrack entries |
+| BandwidthInExceeded | Inbound bandwidth exceeded |
+| BandwidthOutExceeded | Outbound bandwidth exceeded |
+| PPSExceeded | Packets per second limit exceeded |
+
+## Cost Considerations
+
+### Azure Monitor Costs
+
+- Standard metrics: Free (first 10 metrics)
+- Custom metrics: $0.10 per metric per month
+- API calls: ~100 calls/hour per node
+- **Total: Minimal (~$1-2/month for small cluster)**
+
+### VM Size Recommendations
+
+For DNS-intensive workloads:
+
+| Workload Size | Recommended VM | Network Bandwidth |
+|---------------|----------------|-------------------|
+| Small | Standard_D2s_v3 | 1 Gbps |
+| Medium | Standard_D4s_v3 | 2 Gbps |
+| Large | Standard_D8s_v3 | 4 Gbps |
+
+## Integration with Azure Monitor
+
+### Enable Container Insights (Optional)
+```bash
+az aks enable-addons \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --addons monitoring
+```
+
+### Create Custom Dashboard
+
+1. Go to Azure Portal
+2. Navigate to your AKS cluster
+3. Click "Insights"
+4. Create custom workbook with DNS metrics
+
+## Cleanup
+
+To remove the solution:
+```bash
+./scripts/cleanup.sh
+
+# Optionally remove role assignment
+az role assignment delete \
+  --assignee $IDENTITY \
+  --role "Monitoring Reader" \
+  --scope $VMSS_ID
+
+# Delete cluster (if demo)
+az aks delete \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --yes --no-wait
+```
+
+## Next Steps
+
+1. Run load test: `./tests/load-test/run-load-test.sh`
+2. Configure Slack/Teams alerts
+3. Review dashboards weekly
+4. Monitor for capacity trends
+5. Consider Azure Monitor integration
+
+## Support
+
+- Issues: https://github.com/bharathvasudevanmsuk11/kubernetes-dns-autoheal/issues
+- Docs: https://github.com/bharathvasudevanmsuk11/kubernetes-dns-autoheal/blob/main/docs/
+- Azure Support: https://azure.microsoft.com/support/
