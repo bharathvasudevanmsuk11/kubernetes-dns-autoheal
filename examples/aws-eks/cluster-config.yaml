@@ -1,0 +1,50 @@
+# Example EKS cluster configuration for eksctl
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: dns-autoheal-demo
+  region: us-east-1
+  version: "1.28"
+
+# IAM configuration
+iam:
+  withOIDC: true
+
+# Node groups
+managedNodeGroups:
+  - name: workers
+    instanceType: m5.large
+    desiredCapacity: 3
+    minSize: 2
+    maxSize: 5
+    volumeSize: 50
+    labels:
+      role: worker
+    tags:
+      Environment: production
+      ManagedBy: eksctl
+    iam:
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        # Add the DNS monitoring policy ARN here:
+        # - arn:aws:iam::YOUR_ACCOUNT_ID:policy/DNS-Throttling-Monitor-Policy
+
+# Add-ons
+addons:
+  - name: vpc-cni
+    version: latest
+  - name: coredns
+    version: latest
+  - name: kube-proxy
+    version: latest
+
+# CloudWatch logging
+cloudWatch:
+  clusterLogging:
+    enableTypes:
+      - api
+      - audit
+      - authenticator
