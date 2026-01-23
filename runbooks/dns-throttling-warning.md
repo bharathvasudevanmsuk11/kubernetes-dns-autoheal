@@ -164,4 +164,118 @@ Common causes of DNS throttling:
 **Solution:** Increase min replicas in autoscaler  
 **Prevention:** Capacity planning based on cluster size
 
-### 5.
+### 5. Node Instance Type Too Small
+**Impact:** Low network packet limits  
+**Solution:** Upgrade to larger instance type  
+**Prevention:** Use recommended instance types for Kubernetes
+
+---
+
+## Verification
+
+After remediation, verify:
+```bash
+# 1. Throttling metrics returned to zero
+# Query in Prometheus: kubernetes_dns_linklocal_allowance_exceeded
+# Should show 0 or no data
+
+# 2. CoreDNS pods healthy
+kubectl get pods -n kube-system -l k8s-app=kube-dns
+# All Running, no restarts
+
+# 3. Application DNS working
+kubectl run test-dns --image=busybox --rm -it --restart=Never -- \
+  nslookup kubernetes.default
+# Should resolve successfully
+
+# 4. No new alerts
+# Check Alertmanager: http://localhost:9093
+```
+
+---
+
+## Prevention
+
+To prevent future occurrences:
+
+### Short-term (Immediate)
+
+- [x] Ensure NodeLocal DNS Cache is deployed
+- [ ] Review CoreDNS autoscaler max replicas (increase if needed)
+- [ ] Identify workloads with high DNS query rates
+
+### Medium-term (This Week)
+
+- [ ] Audit applications for DNS caching configuration
+- [ ] Review service mesh configuration (if using Istio/Linkerd)
+- [ ] Document DNS query patterns in capacity plan
+
+### Long-term (This Month)
+
+- [ ] Consider larger instance types if chronic issue
+- [ ] Implement connection pooling in applications
+- [ ] Add DNS query rate metrics to application dashboards
+- [ ] Include DNS load testing in performance tests
+
+---
+
+## Escalation
+
+### Escalate to DNS Throttling Critical if:
+
+- Throttling continues after 10 minutes
+- Multiple nodes affected simultaneously
+- Application errors reported by users
+- Exceeded count > 100
+
+### Escalate to Infrastructure Team if:
+
+- Instance type appears undersized for workload
+- Chronic throttling on specific node types
+- Need to upgrade instance specifications
+
+---
+
+## Related Alerts
+
+- **DNSThrottlingCritical** - Severe throttling (>100 packets dropped)
+- **ConntrackExhausted** - Connection tracking table full
+- **BandwidthSaturation** - Network bandwidth limits hit
+
+---
+
+## Documentation
+
+- [Architecture](../docs/architecture.md)
+- [Troubleshooting Guide](../docs/troubleshooting.md)
+- [FAQ](../docs/faq.md)
+
+---
+
+## Post-Incident Actions
+
+After resolving:
+
+1. **Update Incident Log**
+   - Duration of incident
+   - Root cause identified
+   - Actions taken
+   - Effectiveness of auto-remediation
+
+2. **Review Metrics**
+   - Check Grafana for trends leading up to alert
+   - Identify if predictable pattern exists
+
+3. **Update Documentation**
+   - Add learnings to this runbook
+   - Update capacity planning if needed
+
+4. **Team Communication**
+   - Share root cause in team channel
+   - Update on-call rotation if needed
+
+---
+
+**Last Updated:** January 2026  
+**Version:** 1.0.0  
+**Owner:** SRE Team
