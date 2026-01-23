@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-load-test
+  namespace: default
+  labels:
+    app: dns-load-test
+    test: load-test
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: dns-load-test
+  template:
+    metadata:
+      labels:
+        app: dns-load-test
+    spec:
+      containers:
+      - name: dns-query
+        image: tutum/dnsutils:latest
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            echo "Starting DNS load test..."
+            echo "This will generate continuous DNS queries"
+            
+            # Array of services to query
+            SERVICES=(
+              "kubernetes.default.svc.cluster.local"
+              "kube-dns.kube-system.svc.cluster.local"
+              "prometheus-grafana.monitoring.svc.cluster.local"
+              "prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local"
+            )
+            
+            COUNTER=0
+            while true; do
+              # Query each service
+              for service in "${SERVICES[@]}"; do
+                nslookup $service >/dev/null 2>&1 || true
+                ((COUNTER++))
+              done
+              
+              # Log progress every 100 queries
+              if (( COUNTER % 100 == 0 )); then
+                echo "$(date) - Completed $COUNTER DNS queries"
+              fi
+              
+              # Small delay to avoid overwhelming immediately
+              sleep 0.1
+            done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
