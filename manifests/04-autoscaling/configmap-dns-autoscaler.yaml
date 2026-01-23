@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dns-autoscaler
+  namespace: kube-system
+  labels:
+    app: dns-autoscaler
+data:
+  linear: |-
+    {
+      "coresPerReplica": 256,
+      "nodesPerReplica": 16,
+      "min": 2,
+      "max": 10,
+      "preventSinglePointFailure": true,
+      "includeUnschedulableNodes": true
+    }
