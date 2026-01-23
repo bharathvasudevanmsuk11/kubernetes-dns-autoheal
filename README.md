@@ -59,7 +59,7 @@ graph TB
 ---
 
 ## 🚀 Quick Start
-👉 See QUICKSTART.md https://github.com/bharathvasudevanmsuk11/kubernetes-dns-autoheal/blob/main/QUICKSTART.md for complete deployment checklist
+👉 See [QUICKSTART.md](main/QUICKSTART.md) for complete deployment checklist
 
 ### Prerequisites
 - Kubernetes 1.21+
