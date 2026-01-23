@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dns-throttling-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  dns-throttling-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "DNS Throttling Monitoring",
+        "tags": ["kubernetes", "dns", "throttling"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "DNS Throttling Events",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(kubernetes_dns_linklocal_allowance_exceeded) by (instance)",
+                "legendFormat": "{{ instance }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Conntrack Status",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "kubernetes_dns_conntrack_allowance_available",
+                "legendFormat": "Available"
+              },
+              {
+                "expr": "kubernetes_dns_conntrack_allowance_exceeded",
+                "legendFormat": "Exceeded"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          }
+        ]
+      }
+    }
