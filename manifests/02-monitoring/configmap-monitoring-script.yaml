@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dns-monitor-script
+  namespace: monitoring
+data:
+  monitor.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    
+    # Detect cloud platform
+    detect_platform() {
+      if curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/ >/dev/null 2>&1; then
+        echo "AWS"
+      elif curl -s --connect-timeout 1 -H Metadata:true \
+           "http://169.254.169.254/metadata/instance?api-version=2021-02-01" >/dev/null 2>&1; then
+        echo "Azure"
+      else
+        echo "Unknown"
+      fi
+    }
+    
+    PLATFORM=$(detect_platform)
+    METRICS_FILE="/var/lib/node_exporter/textfile_collector/dns_throttle.prom"
+    
+    # Export metrics in Prometheus format
+    export_prometheus_metric() {
+      local metric_name=$1
+      local value=$2
+      local labels=$3
+      echo "# HELP ${metric_name} DNS throttling metric"
+      echo "# TYPE ${metric_name} gauge"
+      echo "${metric_name}{${labels}} ${value}"
+    }
+    
+    # AWS metrics collection
+    fetch_aws_metrics() {
+      local instance_id=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+      local region=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+      
+      for metric in linklocal_allowance_exceeded conntrack_allowance_exceeded \
+                    conntrack_allowance_available bw_in_allowance_exceeded \
+                    bw_out_allowance_exceeded pps_allowance_exceeded; do
+        
+        value=$(aws cloudwatch get-metric-statistics \
+          --region "$region" \
+          --namespace "AWS/EC2" \
+          --metric-name "$metric" \
+          --dimensions Name=InstanceId,Value="$instance_id" \
+          --start-time $(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ) \
+          --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
+          --period 60 \
+          --statistics Sum \
+          --query 'Datapoints[0].Sum' \
+          --output text 2>/dev/null || echo "0")
+        
+        if [[ "$value" == "None" ]] || [[ -z "$value" ]]; then
+          value="0"
+        fi
+        
+        export_prometheus_metric \
+          "kubernetes_dns_${metric}" \
+          "${value}" \
+          "instance=\"${instance_id}\",region=\"${region}\",platform=\"aws\""
+      done
+    }
+    
+    # Azure metrics collection
+    fetch_azure_metrics() {
+      local resource_id="${AZURE_RESOURCE_ID}"
+      
+      if [[ -z "$resource_id" ]]; then
+        echo "ERROR: AZURE_RESOURCE_ID not set" >&2
+        return 1
+      fi
+      
+      for metric in PacketsDroppedDNS ConntrackExceeded ConntrackAvailable \
+                    BandwidthInExceeded BandwidthOutExceeded PPSExceeded; do
+        
+        value=$(az monitor metrics list \
+          --resource "$resource_id" \
+          --metric "$metric" \
+          --interval PT1M \
+          --top 1 \
+          --query "value[0].timeseries[0].data[-1].total" \
+          --output tsv 2>/dev/null || echo "0")
+        
+        if [[ -z "$value" ]] || [[ "$value" == "None" ]]; then
+          value="0"
+        fi
+        
+        export_prometheus_metric \
+          "kubernetes_dns_${metric}" \
+          "${value}" \
+          "resource=\"${resource_id}\",platform=\"azure\""
+      done
+    }
+    
+    # Main execution
+    mkdir -p $(dirname "$METRICS_FILE")
+    
+    if [[ "$PLATFORM" == "AWS" ]]; then
+      echo "Collecting AWS metrics..."
+      fetch_aws_metrics > "$METRICS_FILE.tmp"
+      mv "$METRICS_FILE.tmp" "$METRICS_FILE"
+      echo "AWS metrics collected successfully"
+    elif [[ "$PLATFORM" == "Azure" ]]; then
+      echo "Collecting Azure metrics..."
+      fetch_azure_metrics > "$METRICS_FILE.tmp"
+      mv "$METRICS_FILE.tmp" "$METRICS_FILE"
+      echo "Azure metrics collected successfully"
+    else
+      echo "Unknown platform detected. No metrics collected."
+      exit 1
+    fi
